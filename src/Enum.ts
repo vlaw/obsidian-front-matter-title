@@ -26,7 +26,6 @@ export const Managers = [
     Feature.Graph,
     Feature.Header,
     Feature.Starred,
-    Feature.Search,
     Feature.Tab,
     Feature.InlineTitle,
     Feature.Canvas,

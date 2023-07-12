@@ -1,5 +1,15 @@
 import "obsidian";
-import { Events, MarkdownView, MetadataCache, Plugin, TFile, TFolder, View, WorkspaceLeaf } from "obsidian";
+import {
+    Events,
+    MarkdownSubView,
+    MarkdownView,
+    MetadataCache,
+    Plugin,
+    TFile,
+    TFolder,
+    View,
+    WorkspaceLeaf,
+} from "obsidian";
 
 declare module "obsidian" {
     export class AppExt extends App {
@@ -77,6 +87,7 @@ declare module "obsidian" {
         titleContainerEl: HTMLDivElement;
         inlineTitleEl: HTMLDivElement;
         leaf: WorkspaceLeafExt;
+        currentMode: MarkdownSubView & { _children: (MarkdownSearchChild | any)[] };
     }
     export abstract class CanvasViewExt extends FileView {
         canvas: Canvas;
@@ -117,14 +128,19 @@ declare module "obsidian" {
         alias?: string;
     }
 
-    export interface SearchViewDOM {
+    export interface MarkdownSearchChild {
+        dom: SearchDOM;
+        query: string;
+    }
+    export interface SearchDOM {
         addResult(f: TFile, ...other: unknown[]): unknown;
 
         resultDomLookup: Map<TFile, unknown>;
     }
 
     export abstract class SearchPluginView extends View {
-        dom: SearchViewDOM;
+        leaf: WorkspaceLeafExt;
+        dom: SearchDOM;
         startSearch: () => any;
     }
 

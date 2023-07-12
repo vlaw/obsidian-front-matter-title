@@ -6,7 +6,7 @@ import ExplorerManager from "@src/Feature/Explorer/ExplorerManager";
 import FeatureComposer from "@src/Feature/FeatureComposer";
 import ExplorerSort from "@src/Feature/Explorer/ExplorerSort";
 import ManagerComposer from "@src/Feature/ManagerComposer";
-import SearchManager from "@src/Feature/Search/SearchManager";
+import SearchFeature from "@src/Feature/Search/SearchFeature";
 import TabManager from "@src/Feature/Tab/TabManager";
 import { AliasFeature } from "@src/Feature/Alias/AliasFeature";
 import EnsureStrategy from "@src/Feature/Alias/Strategy/EnsureStrategy";
@@ -55,7 +55,7 @@ export default (container: Container) => {
     container.bind<FeatureInterface<any>>(SI.feature).to(AliasFeature).whenTargetNamed(AliasFeature.getId());
     container.bind<FeatureInterface<any>>(SI.feature).to(ExplorerManager).whenTargetNamed(ExplorerManager.getId());
     container.bind<FeatureInterface<any>>(SI.feature).to(ExplorerSort).whenTargetNamed(ExplorerSort.getId());
-    container.bind<FeatureInterface<any>>(SI.feature).to(SearchManager).whenTargetNamed(SearchManager.getId());
+    container.bind<FeatureInterface<any>>(SI.feature).to(SearchFeature).whenTargetNamed(SearchFeature.getId());
     container.bind<FeatureInterface<any>>(SI.feature).to(StarredManager).whenTargetNamed(StarredManager.getId());
     container.bind<FeatureInterface<any>>(SI.feature).to(TabManager).whenTargetNamed(TabManager.getId());
     container.bind<FeatureInterface<any>>(SI.feature).to(SuggestFeature).whenTargetNamed(SuggestFeature.getId());
@@ -93,10 +93,15 @@ export default (container: Container) => {
         .whenTargetNamed(AliasValidatorType.FrontmatterRequired);
 
     container.bind(SI["feature:notelink:approve"]).to(NoteLinkApprove);
-    container.bind(SI["feature:config"])
-        .toDynamicValue((c) => {
-            const feature = c.currentRequest.target.getNamedTag().value as Feature
-            return c.container.get<KeyStorageInterface<SettingsType>>(SI["settings:storage"]).get('features').get(feature).value()
-        }).when(() => true)
-
+    container
+        .bind(SI["feature:config"])
+        .toDynamicValue(c => {
+            const feature = c.currentRequest.target.getNamedTag().value as Feature;
+            return c.container
+                .get<KeyStorageInterface<SettingsType>>(SI["settings:storage"])
+                .get("features")
+                .get(feature)
+                .value();
+        })
+        .when(() => true);
 };
