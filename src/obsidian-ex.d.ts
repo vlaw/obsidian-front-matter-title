@@ -135,7 +135,7 @@ declare module "obsidian" {
     export interface SearchDOM {
         addResult(f: TFile, ...other: unknown[]): unknown;
 
-        resultDomLookup: Map<TFile, unknown>;
+        resultDomLookup: Map<TFile, { containerEl: HTMLDivElement }>;
     }
 
     export abstract class SearchPluginView extends View {

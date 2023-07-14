@@ -4,7 +4,7 @@ import ObsidianFacade from "@src/Obsidian/ObsidianFacade";
 import LoggerInterface from "@src/Components/Debug/LoggerInterface";
 import FunctionReplacer from "@src/Utils/FunctionReplacer";
 import { Feature, Leaves } from "@src/Enum";
-import { MarkdownViewExt, SearchPluginView, SearchDOM } from "obsidian";
+import { MarkdownViewExt, SearchPluginView, SearchDOM, TFile } from "obsidian";
 import AbstractFeature from "@src/Feature/AbstractFeature";
 import FeatureService from "@src/Feature/FeatureService";
 import { ResolverInterface } from "@src/Resolver/Interfaces";
@@ -57,7 +57,6 @@ export default class SearchFeature extends AbstractFeature<Feature> {
     private initReplacer(): Replacer[] {
         const replacers: { [k: string]: Replacer } = {};
         for (const [id, dom] of Object.entries(this.getSearchDomes())) {
-            console.log(dom);
             if (this.replacers[id]) {
                 replacers[id] = this.replacers[id];
                 continue;
@@ -66,23 +65,30 @@ export default class SearchFeature extends AbstractFeature<Feature> {
                 const c = vanilla.call(this, ...defaultArgs);
                 const file = defaultArgs[0];
                 if (file?.extension === "md") {
-                    const title = self.resolver.resolve(file.path);
-                    if (title) {
-                        c.containerEl.find(".tree-item-inner").setText(title);
-                    }
+                    self.updateDomTitle(file, c);
                 }
                 return c;
             });
         }
         this.replacers = replacers;
-        console.log(this.replacers);
 
         return Object.values(replacers);
     }
-    private triggerMarkdownDomes(): void {
-        for (const dom of Object.values(this.getMarkdownQueryDomes())) {
+
+    private updateDomTitle(file: TFile, el: { containerEl: Element }, restore = false): void {
+        const title = restore ? file.basename : this.resolver.resolve(file.path);
+        const c = el.containerEl.find(".tree-item-inner");
+        if (title && c.getText() !== title) {
+            c.setText(title);
+        }
+    }
+
+    private updateDomesTitle(restore = false): void {
+        for (const dom of Object.values(this.getSearchDomes())) {
             for (const [file, el] of dom.resultDomLookup.entries()) {
-                el.containerEl.find(".tree-item-inner").setText(file.basename);
+                if (file?.extension === "md") {
+                    this.updateDomTitle(file, el, restore);
+                }
             }
         }
     }
@@ -90,22 +96,21 @@ export default class SearchFeature extends AbstractFeature<Feature> {
     public async disable(): Promise<void> {
         this.initReplacer().forEach(e => e.disable());
         this.enabled = false;
-        this.getSearchView()?.startSearch();
-        this.triggerMarkdownDomes();
+        this.updateDomesTitle(true);
     }
 
     public async enable(): Promise<void> {
         this.initReplacer().forEach(e => e.enable());
         this.enabled = !Object.isEmpty(this.replacers);
         if (this.enabled) {
-            this.getSearchView().startSearch();
-            this.triggerMarkdownDomes();
+            this.updateDomesTitle();
         }
     }
 
     static getId(): Feature {
         return Feature.Search;
     }
+
     getId(): Feature {
         return SearchFeature.getId();
     }
