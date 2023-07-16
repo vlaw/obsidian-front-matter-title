@@ -8,17 +8,26 @@ import { MarkdownViewExt, SearchPluginView, SearchDOM, TFile } from "obsidian";
 import AbstractFeature from "@src/Feature/AbstractFeature";
 import FeatureService from "@src/Feature/FeatureService";
 import { ResolverInterface } from "@src/Resolver/Interfaces";
-
+import EventDispatcherInterface from "../../Components/EventDispatcher/Interfaces/EventDispatcherInterface";
+import { AppEvents } from "../../Types";
+import ListenerRef from "../../Components/EventDispatcher/Interfaces/ListenerRef";
+import Queue from 'queue'
 type Replacer = FunctionReplacer<SearchDOM, "addResult", SearchFeature>;
 
+//Looks like it should be two different features. Think about it.
 export default class SearchFeature extends AbstractFeature<Feature> {
     private enabled = false;
     private replacers: { [k: string]: Replacer } = {};
     private resolver: ResolverInterface;
+    private refs: ListenerRef<keyof AppEvents>[] = [];
+    private timer: NodeJS.Timeout = null;
+    private queue: Queue = new Queue({ autostart: true });
 
     constructor(
         @inject(SI["facade:obsidian"])
         private facade: ObsidianFacade,
+        @inject(SI["event:dispatcher"])
+        private dispatcher: EventDispatcherInterface<AppEvents>,
         @inject(SI.logger)
         @named("manager:starred")
         private logger: LoggerInterface,
@@ -38,7 +47,7 @@ export default class SearchFeature extends AbstractFeature<Feature> {
         this.facade.getViewsOfType<MarkdownViewExt>(Leaves.MD).forEach(e => {
             for (const child of e.currentMode._children) {
                 if (child?.dom && child?.query) {
-                    domes[e.leaf.id] = child.dom;
+                    domes[`${e.leaf.id}-${e.file.path}`] = child.dom;
                 }
             }
         });
@@ -48,13 +57,14 @@ export default class SearchFeature extends AbstractFeature<Feature> {
     private getSearchDomes(): { [k: string]: SearchDOM } | null {
         const domes = this.getMarkdownQueryDomes();
         const view = this.getSearchView();
-        if (view.dom) {
+        if (view?.dom) {
             domes[view.leaf.id] = view.dom;
         }
         return domes;
     }
 
-    private initReplacer(): Replacer[] {
+    private initReplacers(): Replacer[] {
+        console.log('start');
         const replacers: { [k: string]: Replacer } = {};
         for (const [id, dom] of Object.entries(this.getSearchDomes())) {
             if (this.replacers[id]) {
@@ -71,7 +81,7 @@ export default class SearchFeature extends AbstractFeature<Feature> {
             });
         }
         this.replacers = replacers;
-
+        console.log('stop');
         return Object.values(replacers);
     }
 
@@ -94,17 +104,27 @@ export default class SearchFeature extends AbstractFeature<Feature> {
     }
 
     public async disable(): Promise<void> {
-        this.initReplacer().forEach(e => e.disable());
+        Object.values(this.replacers).forEach(e => e.disable());
         this.enabled = false;
         this.updateDomesTitle(true);
     }
 
     public async enable(): Promise<void> {
-        this.initReplacer().forEach(e => e.enable());
-        this.enabled = !Object.isEmpty(this.replacers);
-        if (this.enabled) {
+        this.initReplacers().forEach(e => e.enable());
+        this.enabled = true;
+        this.refs.push(this.dispatcher.addListener({
+            name: 'layout:change',
+            cb: () => {
+                console.log('lc')
+                this.timer && clearTimeout(this.timer);
+                this.queue.push(cb => this.initReplacers() && cb());
+            }
+        }))
+
+        if (!Object.isEmpty(this.replacers)) {
             this.updateDomesTitle();
         }
+
     }
 
     static getId(): Feature {
