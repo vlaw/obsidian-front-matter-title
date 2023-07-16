@@ -6,6 +6,7 @@ import FunctionReplacer from "@src/Utils/FunctionReplacer";
 import { SearchPluginView, SearchDOM, TFile } from "obsidian";
 import SearchFeature from "@src/Feature/Search/SearchFeature";
 import { ResolverInterface } from "@src/Resolver/Interfaces";
+import FeatureService from "../../../../src/Feature/FeatureService";
 
 const addResult = jest.fn();
 const mockDom = mock<SearchDOM>({ addResult }, { deep: true });
@@ -19,9 +20,12 @@ const spyCreate = jest.spyOn(FunctionReplacer, "create").mockImplementation((t, 
 });
 const mockFacade = mock<ObsidianFacade>();
 const mockResolver = mock<ResolverInterface>();
-const manager = new SearchFeature(mockFacade, mock<LoggerInterface>());
-manager.setResolver(mockResolver);
-
+const mockFeatureService = mock<FeatureService>();
+mockFeatureService.createResolver.mockReturnValueOnce(mockResolver);
+const manager = new SearchFeature(mockFacade, mock<LoggerInterface>(), mockFeatureService);
+test('Service should have been called', () => {
+    expect(mockFeatureService.createResolver).toHaveBeenCalledWith(Feature.Search);
+})
 test(`Should return ${Feature.Search}`, () => expect(manager.getId()).toEqual(Feature.Search));
 
 describe("Test unsuccessful attempts to enable manager", () => {

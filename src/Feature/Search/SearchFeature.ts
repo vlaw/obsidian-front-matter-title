@@ -17,7 +17,7 @@ type Replacer = FunctionReplacer<SearchDOM, "addResult", SearchFeature>;
 //Looks like it should be two different features. Think about it.
 export default class SearchFeature extends AbstractFeature<Feature> {
     private enabled = false;
-    private replacers: { [k: string]: Replacer } = {};
+    private replacers: WeakMap<SearchDOM, Replacer> = new WeakMap();
     private resolver: ResolverInterface;
     private refs: ListenerRef<keyof AppEvents>[] = [];
     private timer: NodeJS.Timeout = null;
@@ -42,36 +42,35 @@ export default class SearchFeature extends AbstractFeature<Feature> {
         return this.facade.getViewsOfType<SearchPluginView>("search")?.[0] ?? null;
     }
 
-    private getMarkdownQueryDomes(): { [k: string]: SearchDOM } {
-        const domes: { [k: string]: SearchDOM } = {};
+    private getMarkdownQueryDomes(): SearchDOM[] {
+        const domes: SearchDOM[] = [];
         this.facade.getViewsOfType<MarkdownViewExt>(Leaves.MD).forEach(e => {
             for (const child of e.currentMode._children) {
                 if (child?.dom && child?.query) {
-                    domes[`${e.leaf.id}-${e.file.path}`] = child.dom;
+                    domes.push(child.dom);
                 }
             }
         });
         return domes;
     }
 
-    private getSearchDomes(): { [k: string]: SearchDOM } | null {
+    private getSearchDomes(): SearchDOM[] | null {
         const domes = this.getMarkdownQueryDomes();
         const view = this.getSearchView();
         if (view?.dom) {
-            domes[view.leaf.id] = view.dom;
+            domes.push(view.dom);
         }
         return domes;
     }
 
-    private initReplacers(): Replacer[] {
-        console.log('start');
-        const replacers: { [k: string]: Replacer } = {};
-        for (const [id, dom] of Object.entries(this.getSearchDomes())) {
-            if (this.replacers[id]) {
-                replacers[id] = this.replacers[id];
+    private initReplacers(): Map<SearchDOM, Replacer> {
+        const replacers: Map<SearchDOM, Replacer> = new Map();;
+        for (const dom of this.getSearchDomes()) {
+            if (this.replacers.has(dom)) {
                 continue;
             }
-            replacers[id] = FunctionReplacer.create(dom, "addResult", this, function (self, defaultArgs, vanilla) {
+            console.log(dom, 'update');
+            const replacer = FunctionReplacer.create(dom, "addResult", this, function (self, defaultArgs, vanilla) {
                 const c = vanilla.call(this, ...defaultArgs);
                 const file = defaultArgs[0];
                 if (file?.extension === "md") {
@@ -79,10 +78,10 @@ export default class SearchFeature extends AbstractFeature<Feature> {
                 }
                 return c;
             });
+            replacers.set(dom, replacer);
+            this.replacers.set(dom, replacer);
         }
-        this.replacers = replacers;
-        console.log('stop');
-        return Object.values(replacers);
+        return replacers;
     }
 
     private updateDomTitle(file: TFile, el: { containerEl: Element }, restore = false): void {
@@ -92,39 +91,44 @@ export default class SearchFeature extends AbstractFeature<Feature> {
             c.setText(title);
         }
     }
-
-    private updateDomesTitle(restore = false): void {
-        for (const dom of Object.values(this.getSearchDomes())) {
-            for (const [file, el] of dom.resultDomLookup.entries()) {
-                if (file?.extension === "md") {
-                    this.updateDomTitle(file, el, restore);
-                }
+    private updateAllDomTitles(dom: SearchDOM, restore = false): void {
+        for (const [file, el] of dom.resultDomLookup.entries()) {
+            if (file?.extension === "md") {
+                this.updateDomTitle(file, el, restore);
             }
         }
     }
 
+    private updateDomesTitle(restore = false): void {
+        for (const dom of Object.values(this.getSearchDomes())) {
+            this.updateAllDomTitles(dom, restore);
+        }
+    }
+
     public async disable(): Promise<void> {
-        Object.values(this.replacers).forEach(e => e.disable());
+        this.getSearchDomes().forEach(e => this.replacers.get(e)?.disable())
         this.enabled = false;
         this.updateDomesTitle(true);
     }
 
     public async enable(): Promise<void> {
-        this.initReplacers().forEach(e => e.enable());
         this.enabled = true;
+        const run = () => {
+            for (const [d, r] of this.initReplacers()) {
+                r.enable();
+                this.updateAllDomTitles(d);
+            }
+        }
+        run();
+
         this.refs.push(this.dispatcher.addListener({
             name: 'layout:change',
             cb: () => {
                 console.log('lc')
                 this.timer && clearTimeout(this.timer);
-                this.queue.push(cb => this.initReplacers() && cb());
+                this.timer = setTimeout(() => run(), 1000)
             }
         }))
-
-        if (!Object.isEmpty(this.replacers)) {
-            this.updateDomesTitle();
-        }
-
     }
 
     static getId(): Feature {
