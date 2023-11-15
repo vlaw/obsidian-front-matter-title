@@ -1,0 +1,33 @@
+.nav-file-title {
+    flex-direction: row; /* default */
+    flex-wrap:nowrap;    /* default */
+
+    /* 两端对齐，项目之间的间隔都相等 */
+	/* justify-content: space-between; */
+}
+
+.nav-file-title-content, .nav-folder-title-content {
+    overflow: revert;
+}
+
+.tree-item-extra {
+    order: 99;
+    margin-left: auto; /* 最后一个元素靠右 */
+
+    /* 样式而已 */
+    opacity: 60%;
+    background-color: var(--background-modifier-hover);
+    border-radius: var(--radius-s);
+    color: var(--nav-file-tag) !important;
+    font-family: var(--font-monospace), Menlo, monospace;
+    font-size: var(--font-smallest);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.05em;
+    line-height: var(--line-height-normal);
+    padding: 0 var(--size-4-1);
+}
+
+/* attachment files: png and others */
+.nav-file-tag {
+    margin-left: auto; /* 最后一个元素靠右 */
+}
